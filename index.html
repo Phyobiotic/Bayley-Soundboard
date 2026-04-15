@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bayley Dramafeste Soundboard!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&display=swap" rel="stylesheet">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f5f2;
+    --surface: #ffffff;
+    --border: #e4e0da;
+    --border-strong: #ccc8c1;
+    --text-primary: #1a1917;
+    --text-secondary: #6b6760;
+    --text-muted: #aaa9a6;
+    --accent: #2563eb;
+    --accent-light: #eff4ff;
+    --red: #dc2626;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+    --footer-height: 90px;
+  }
+
+  body { background: var(--bg); color: var(--text-primary); font-family: 'Instrument Sans', sans-serif; padding-bottom: var(--footer-height); }
+
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; }
+  .logo { font-family: 'Instrument Serif', serif; font-size: 22px; }
+
+  footer {
+    position: fixed; bottom: 0; left: 0; right: 0; height: var(--footer-height); background: var(--surface);
+    border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1.5fr 1fr; align-items: center;
+    padding: 0 32px; z-index: 1000; box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+  }
+
+  .footer-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  #now-playing-info { display: flex; flex-direction: column; overflow: hidden; }
+  #now-playing-title { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #now-playing-scene { font-size: 11px; color: var(--text-muted); }
+
+  .footer-center { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .playback-controls { display: flex; align-items: center; gap: 24px; }
+
+  .control-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; transition: all 0.15s; }
+  .control-btn:hover { color: var(--text-primary); }
+
+  .play-pause-btn { 
+    background: var(--text-primary); color: #fff; width: 42px; height: 42px; 
+    border-radius: 50%; justify-content: center; align-items: center;
+  }
+  .play-pause-btn:hover { transform: scale(1.05); }
+
+  .footer-right { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+  #vol { width: 120px; accent-color: var(--text-primary); }
+
+  main { padding: 28px 32px; max-width: 1200px; margin: 0 auto; }
+  .tabs-row { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .tab-btn { background: none; border: none; border-bottom: 2px solid transparent; padding: 8px 18px 10px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .scene-panel { display: none; }
+  .scene-panel.active { display: block; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .panel-title { font-family: 'Instrument Serif', serif; font-size: 28px; }
+  
+  .upload-btn { background: var(--accent); color: #fff; border: none; padding: 10px 20px; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+
+  .cues-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .cue-card { 
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); 
+    padding: 18px; cursor: grab; position: relative; overflow: hidden; 
+    transition: all 0.2s ease; box-shadow: var(--shadow-sm); user-select: none;
+  }
+  .cue-card:hover { border-color: var(--border-strong); transform: translateY(-4px); box-shadow: var(--shadow-md); }
+  .cue-card.playing { border-color: var(--accent); background: var(--accent-light); }
+  .cue-card.dragging { opacity: 0.4; transform: scale(0.95); }
+
+  .cue-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .cue-index { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+  .cue-name { font-size: 15px; font-weight: 600; line-height: 1.4; margin-bottom: 16px; min-height: 42px; cursor: text; }
+  .cue-name.editing { background: white; border: 1px solid var(--accent); border-radius: 4px; padding: 4px 8px; }
+
+  .card-actions { display: flex; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .icon-action { background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary); padding: 6px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .icon-action:hover { background: var(--surface); color: var(--text-primary); border-color: var(--border-strong); }
+  .icon-action.delete:hover { background: var(--red-light); color: var(--red); border-color: var(--red); }
+
+  .progress-bar { position: absolute; bottom: 0; left: 0; height: 4px; background: var(--accent); width: 0%; transition: width 0.1s linear; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius-lg); padding: 32px; width: 760px; max-width: 95vw; box-shadow: var(--shadow-md); }
+  .drop-zone { border: 2px dashed var(--border-strong); border-radius: var(--radius-md); padding: 60px; text-align: center; cursor: pointer; background: var(--bg); margin-bottom: 24px; transition: all 0.2s; }
+  .drop-zone:hover { border-color: var(--accent); background: #f0f4ff; }
+
+  .staging-area { border: 1px solid var(--border); border-radius: var(--radius-md); max-height: 350px; overflow-y: auto; margin-bottom: 20px; }
+  .staging-table { width: 100%; border-collapse: collapse; }
+  .staging-table th { background: var(--bg); padding: 14px; font-size: 11px; text-align: left; border-bottom: 1px solid var(--border); color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+  .staging-table td { padding: 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .staging-table input, .staging-table select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; }
+
+  .remove-staged { background: none; border: none; color: #dc2626; cursor: pointer; padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .remove-staged:hover { background: #fef2f2; color: #b91c1c; }
+
+  .toast { position: fixed; bottom: 110px; right: 32px; background: #1a1917; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 13px; transform: translateY(20px); opacity: 0; transition: all 0.3s; z-index: 3000; pointer-events: none; box-shadow: var(--shadow-md); }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  .delete-modal { background: var(--surface); border-radius: var(--radius-lg); padding: 28px; width: 380px; text-align: center; box-shadow: var(--shadow-md); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="logo">Bayley Dramafeste Soundboard!</span>
+  </div>
+  <div id="conn-status" style="font-size:11px; font-weight: 700; color:var(--accent);">ONLINE</div>
+</header>
+
+<main>
+  <div class="tabs-row" id="tabs-row"></div>
+  <div id="panels-container"></div>
+</main>
+
+<footer>
+  <div class="footer-left">
+    <div id="now-playing-info">
+      <span id="now-playing-title">Ready to Play</span>
+      <span id="now-playing-scene">No track active</span>
+    </div>
+  </div>
+  <div class="footer-center">
+    <div class="playback-controls">
+      <button class="control-btn" title="Restart Track" onclick="resetCurrent()">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+          <path d="M3 3v5h5"></path>
+        </svg>
+      </button>
+
+      <button class="control-btn play-pause-btn" id="global-play-pause" onclick="toggleGlobalPlayback()">
+        <svg id="play-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="pause-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="footer-right">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2V15H6L11 19V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+    <input type="range" id="vol" min="0" max="1" step="0.01" value="1" oninput="setVol(this.value)">
+  </div>
+</footer>
+
+<!-- Upload Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="panel-title" style="margin-bottom: 16px;">Upload Audio Cues</div>
+    <div class="drop-zone" onclick="document.getElementById('file-input').click()">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="margin-bottom: 16px; color: var(--text-muted);">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <div style="font-weight: 600; font-size:15px;">Drop files here or click to browse</div>
+    </div>
+    <input type="file" id="file-input" multiple style="display:none;" onchange="onFilesChosen(this)">
+    <div id="staging-wrap" style="display:none;">
+      <div class="staging-area">
+        <table class="staging-table">
+          <thead><tr><th>Display Name</th><th style="width: 160px;">Target Scene</th><th style="width: 50px;"></th></tr></thead>
+          <tbody id="staging-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="display:flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+      <button class="tab-btn" style="border:none" onclick="closeModal()">Cancel</button>
+      <button class="upload-btn" id="upload-submit" onclick="doBatchUpload()" disabled>Upload to Cloud</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="delete-modal">
+    <h3 style="color:var(--red); margin-bottom:12px;">Delete Cue</h3>
+    <p id="delete-name" style="margin:16px 0; color:var(--text-secondary);"></p>
+    <div style="display:flex; gap:12px; justify-content:center; margin-top:20px;">
+      <button class="tab-btn" onclick="cancelDelete()">Cancel</button>
+      <button onclick="confirmDelete()" style="background:var(--red); color:white; border:none; padding:10px 24px; border-radius:6px; font-weight:600; cursor:pointer;">Yes, Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://angtodlbjjiuwnznksmi.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_4_0m6jAw3eIdzhcvFsgKxw_Bf_RuSFy';
+const BUCKET = 'dramafeste-audio';
+const SCENES = ['Scene 1','Scene 2','Scene 3','Scene 4','Scene 5'];
+
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+let activeScene = 'Scene 1';
+let audios = {};
+let currentPath = null;
+let currentVol = 1;
+let stagedFiles = [];
+let fileToDelete = null;
+let sceneOrders = {};
+
+async function init() {
+  buildTabs();
+  buildPanels();
+  await loadFiles();
+}
+
+function buildTabs() {
+  const row = document.getElementById('tabs-row');
+  SCENES.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = `tab-btn ${s === activeScene ? 'active' : ''}`;
+    btn.textContent = s;
+    btn.onclick = () => switchTab(s);
+    row.appendChild(btn);
+  });
+}
+
+function buildPanels() {
+  const container = document.getElementById('panels-container');
+  SCENES.forEach(s => {
+    const panel = document.createElement('div');
+    panel.className = `scene-panel ${s === activeScene ? 'active' : ''}`;
+    panel.id = `panel-${s.replace(' ','-')}`;
+    panel.innerHTML = `
+      <div class="panel-header">
+        <div class="panel-title">${s}</div>
+        <button class="upload-btn" onclick="openModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg> Add Sound
+        </button>
+      </div>
+      <div class="cues-grid" id="grid-${s.replace(' ','-')}"></div>`;
+    container.appendChild(panel);
+  });
+}
+
+async function loadFiles() {
+  const { data } = await sb.storage.from(BUCKET).list('', { limit: 500 });
+  const filesByScene = {};
+  SCENES.forEach(s => filesByScene[s] = []);
+
+  (data || []).forEach(f => {
+    const match = f.name.match(/^(Scene \d)___(.+)$/);
+    if (match) {
+      const { data: urlData } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+      filesByScene[match[1]].push({
+        path: f.name,
+        name: match[2],
+        url: urlData.publicUrl,
+        scene: match[1]
+      });
+    }
+  });
+
+  SCENES.forEach(s => renderGrid(s, filesByScene[s]));
+}
+
+function renderGrid(scene, files) {
+  const grid = document.getElementById(`grid-${scene.replace(' ','-')}`);
+  grid.innerHTML = files.length ? '' : '<div style="grid-column:1/-1; padding:80px 20px; text-align:center; color:var(--text-muted);">No tracks yet in this scene</div>';
+
+  if (!sceneOrders[scene]) sceneOrders[scene] = files.map(f => f.path);
+  const ordered = sceneOrders[scene].map(p => files.find(f => f.path === p)).filter(Boolean);
+
+  ordered.forEach((f, i) => {
+    const card = document.createElement('div');
+    card.className = 'cue-card';
+    card.draggable = true;
+    card.dataset.path = f.path;
+    card.id = `card-${CSS.escape(f.path)}`;
+    const displayName = f.name.replace(/\.[^.]+$/, '');
+
+    card.innerHTML = `
+      <div class="cue-header"><span class="cue-index">Cue ${i+1}</span></div>
+      <div class="cue-name" data-path="${f.path}">${displayName}</div>
+      <div class="card-actions" onclick="event.stopPropagation()">
+        <button class="icon-action" title="Rename" onclick="startRenameFromButton('${f.path}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <button class="icon-action delete" title="Delete" onclick="prepareDelete('${f.path}', '${displayName}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="progress-bar" id="prog-${CSS.escape(f.path)}"></div>
+    `;
+
+    // Make name non-clickable
+    const nameEl = card.querySelector('.cue-name');
+    nameEl.style.cursor = 'default';
+
+    // Drag & Drop
+    card.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', f.path);
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    card.addEventListener('dragover', e => e.preventDefault());
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      const dragged = e.dataTransfer.getData('text/plain');
+      if (dragged !== f.path) reorderCards(scene, dragged, f.path);
+    });
+
+    card.onclick = (e) => {
+      if (!e.target.closest('.card-actions')) playCue(f);
+    };
+
+    grid.appendChild(card);
+  });
+}
+function reorderCards(scene, draggedPath, targetPath) {
+  const order = sceneOrders[scene];
+  const fromIndex = order.indexOf(draggedPath);
+  const toIndex = order.indexOf(targetPath);
+  if (fromIndex === -1 || toIndex === -1) return;
+
+  order.splice(fromIndex, 1);
+  order.splice(toIndex, 0, draggedPath);
+  loadFiles();
+}
+
+function startRenameFromButton(path) {
+  const el = document.querySelector(`.cue-name[data-path="${CSS.escape(path)}"]`);
+  if (el) startInlineRename(el);
+}
+
+window.startRenameFromButton = startRenameFromButton;
+
+function startInlineRename(el) {
+  const oldName = el.textContent;
+  const path = el.dataset.path;
+  const input = document.createElement('input');
+  input.value = oldName;
+  input.className = 'cue-name editing';
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const save = async () => {
+    const newName = input.value.trim();
+    if (newName && newName !== oldName) {
+      await renameFile(path, oldName, newName);
+    }
+    input.replaceWith(el);
+  };
+
+  input.onblur = save;
+  input.onkeydown = e => {
+    if (e.key === 'Enter') save();
+    if (e.key === 'Escape') input.replaceWith(el);
+  };
+}
+
+async function renameFile(oldPath, oldDisplay, newDisplay) {
+  const ext = oldPath.split('.').pop();
+  const sceneMatch = oldPath.match(/^(Scene \d)___/);
+  const newPath = `${sceneMatch[1]}___${newDisplay}.${ext}`;
+  
+  const { error } = await sb.storage.from(BUCKET).move(oldPath, newPath);
+  if (error) showToast("Rename failed");
+  else { showToast("Renamed successfully"); await loadFiles(); }
+}
+
+window.prepareDelete = (path, name) => {
+  fileToDelete = path;
+  document.getElementById('delete-name').textContent = `"${name}"`;
+  document.getElementById('delete-modal').classList.add('open');
+};
+
+window.confirmDelete = async () => {
+  if (!fileToDelete) return;
+  const { error } = await sb.storage.from(BUCKET).remove([fileToDelete]);
+  if (error) showToast("Delete failed");
+  else {
+    showToast("Deleted successfully");
+    await loadFiles();
+    if (currentPath === fileToDelete) stopAll();
+  }
+  cancelDelete();
+};
+
+window.cancelDelete = () => {
+  document.getElementById('delete-modal').classList.remove('open');
+  fileToDelete = null;
+};
+function playCue(f) {
+  if (currentPath === f.path && audios[f.path]) {
+    toggleGlobalPlayback();
+    return;
+  }
+  stopAll();
+
+  const audio = new Audio(f.url);
+  audio.volume = currentVol;
+  audios[f.path] = audio;
+  currentPath = f.path;
+
+  document.getElementById('now-playing-title').textContent = f.name.replace(/\.[^.]+$/, '');
+  document.getElementById('now-playing-scene').textContent = f.scene;
+
+  document.getElementById(`card-${CSS.escape(f.path)}`).classList.add('playing');
+
+  audio.play();
+  updatePlaybackUI(true);
+
+  audio.ontimeupdate = () => {
+    const pr = document.getElementById(`prog-${CSS.escape(f.path)}`);
+    if (pr) pr.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+  };
+  audio.onended = () => stopAll();
+}
+
+window.toggleGlobalPlayback = () => {
+  if (!currentPath || !audios[currentPath]) return;
+  const audio = audios[currentPath];
+  if (audio.paused) {
+    audio.play();
+    document.getElementById('play-icon').style.display = 'none';
+    document.getElementById('pause-icon').style.display = 'block';
+  } else {
+    audio.pause();
+    document.getElementById('play-icon').style.display = 'block';
+    document.getElementById('pause-icon').style.display = 'none';
+  }
+};
+
+window.resetCurrent = () => {
+  if (currentPath && audios[currentPath]) audios[currentPath].currentTime = 0;
+};
+
+function updatePlaybackUI(isPlaying) {
+  document.getElementById('play-icon').style.display = isPlaying ? 'none' : 'block';
+  document.getElementById('pause-icon').style.display = isPlaying ? 'block' : 'none';
+}
+
+window.stopAll = () => {
+  Object.keys(audios).forEach(p => {
+    audios[p].pause();
+    const card = document.getElementById(`card-${CSS.escape(p)}`);
+    if (card) card.classList.remove('playing');
+    const prog = document.getElementById(`prog-${CSS.escape(p)}`);
+    if (prog) prog.style.width = '0%';
+  });
+  audios = {};
+  currentPath = null;
+  updatePlaybackUI(false);
+  document.getElementById('now-playing-title').textContent = 'Ready to Play';
+  document.getElementById('now-playing-scene').textContent = 'No track active';
+};
+
+window.setVol = (v) => {
+  currentVol = parseFloat(v);
+  if (currentPath && audios[currentPath]) audios[currentPath].volume = currentVol;
+};
+
+window.renameFile = async (path, oldName) => {
+  const newName = prompt("Enter new cue name:", oldName);
+  if (!newName || newName === oldName) return;
+  const ext = path.split('.').pop();
+  const sceneMatch = path.match(/^(Scene \d)___/);
+  const newPath = `${sceneMatch[1]}___${newName}.${ext}`;
+  
+  const { error } = await sb.storage.from(BUCKET).move(path, newPath);
+  if (error) showToast("Rename failed");
+  else { showToast("Renamed"); await loadFiles(); }
+};
+
+window.deleteFile = async (path, name) => {
+  if (!confirm(`Delete "${name}" permanently?`)) return;
+  const { error } = await sb.storage.from(BUCKET).remove([path]);
+  if (error) showToast("Delete failed");
+  else {
+    showToast("Deleted");
+    await loadFiles();
+    if (currentPath === path) stopAll();
+  }
+};
+
+window.onFilesChosen = (input) => {
+  Array.from(input.files).forEach(f => {
+    stagedFiles.push({
+      file: f,
+      displayName: f.name.replace(/\.[^.]+$/, ''),
+      scene: activeScene
+    });
+  });
+  renderStaging();
+};
+
+function renderStaging() {
+  const b = document.getElementById('staging-body');
+  const w = document.getElementById('staging-wrap');
+  b.innerHTML = '';
+  
+  stagedFiles.forEach((item, i) => {
+    const r = document.createElement('tr');
+    r.innerHTML = `
+      <td><input type="text" value="${item.displayName}" oninput="stagedFiles[${i}].displayName=this.value"></td>
+      <td><select onchange="stagedFiles[${i}].scene=this.value">${SCENES.map(s=>`<option ${s===item.scene?'selected':''}>${s}</option>`).join('')}</select></td>
+      <td>
+        <button class="remove-staged" title="Remove" onclick="removeStaged(${i})">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </td>`;
+    b.appendChild(r);
+  });
+
+  w.style.display = stagedFiles.length ? 'block' : 'none';
+  document.getElementById('upload-submit').disabled = !stagedFiles.length;
+}
+window.removeStaged = (i) => { stagedFiles.splice(i,1); renderStaging(); };
+
+window.doBatchUpload = async () => {
+  const btn = document.getElementById('upload-submit');
+  btn.disabled = true;
+  btn.textContent = "Uploading...";
+
+  for (const item of stagedFiles) {
+    const ext = item.file.name.split('.').pop();
+    const path = `${item.scene}___${item.displayName}.${ext}`;
+    await sb.storage.from(BUCKET).upload(path, item.file, { upsert: true });
+  }
+
+  stagedFiles = [];
+  closeModal();
+  await loadFiles();
+  showToast("All files uploaded successfully");
+  btn.textContent = "Upload to Cloud";
+};
+
+window.switchTab = (s) => {
+  activeScene = s;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent === s));
+  document.querySelectorAll('.scene-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${s.replace(' ','-')}`));
+};
+
+window.openModal = () => document.getElementById('modal').classList.add('open');
+window.closeModal = () => {
+  document.getElementById('modal').classList.remove('open');
+  stagedFiles = [];
+  renderStaging();
+};
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+init();
+</script>
+</body>
+</html>
