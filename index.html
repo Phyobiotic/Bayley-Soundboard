@@ -81,6 +81,8 @@
   .cue-card:hover { border-color: var(--border-strong); transform: translateY(-4px); box-shadow: var(--shadow-md); }
   .cue-card.playing { border-color: var(--accent); background: var(--accent-light); }
   .cue-card.dragging { opacity: 0.4; transform: scale(0.95); }
+  .cue-card.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); transform: translateY(-2px); }
+  .cue-card.placeholder { opacity: 0.7; border: 2px dashed var(--border-strong); background: var(--bg); transform: none !important; box-shadow: none !important; }
 
   .cue-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
   .cue-index { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
@@ -215,8 +217,10 @@ let currentVol = 1;
 let stagedFiles = [];
 let fileToDelete = null;
 let sceneOrders = {};
+let dragPlaceholder = null;
 
 async function init() {
+  sceneOrders = JSON.parse(localStorage.getItem('sceneOrders') || '{}');
   buildTabs();
   buildPanels();
   await loadFiles();
@@ -279,8 +283,14 @@ function renderGrid(scene, files) {
   const grid = document.getElementById(`grid-${scene.replace(' ','-')}`);
   grid.innerHTML = files.length ? '' : '<div style="grid-column:1/-1; padding:80px 20px; text-align:center; color:var(--text-muted);">No tracks yet in this scene</div>';
 
-  if (!sceneOrders[scene]) sceneOrders[scene] = files.map(f => f.path);
-  const ordered = sceneOrders[scene].map(p => files.find(f => f.path === p)).filter(Boolean);
+  let ordered = [];
+  if (sceneOrders[scene]) {
+    ordered = sceneOrders[scene].map(p => files.find(f => f.path === p)).filter(Boolean);
+  }
+  const missing = files.filter(f => !ordered.find(o => o && o.path === f.path));
+  ordered.push(...missing);
+  sceneOrders[scene] = ordered.map(f => f.path);
+  localStorage.setItem('sceneOrders', JSON.stringify(sceneOrders));
 
   ordered.forEach((f, i) => {
     const card = document.createElement('div');
@@ -317,14 +327,57 @@ function renderGrid(scene, files) {
     // Drag & Drop
     card.addEventListener('dragstart', e => {
       e.dataTransfer.setData('text/plain', f.path);
+      dragPlaceholder = document.createElement('div');
+      dragPlaceholder.className = 'cue-card placeholder';
+      dragPlaceholder.innerHTML = '<div style="padding: 18px; height: 120px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 14px;">Drop here</div>';
+      card.parentNode.insertBefore(dragPlaceholder, card.nextSibling);
       card.classList.add('dragging');
     });
-    card.addEventListener('dragend', () => card.classList.remove('dragging'));
-    card.addEventListener('dragover', e => e.preventDefault());
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      if (dragPlaceholder) {
+        dragPlaceholder.remove();
+        dragPlaceholder = null;
+      }
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (!dragPlaceholder) return;
+      const rect = card.getBoundingClientRect();
+      const mid = rect.left + rect.width / 2;
+      const insertBefore = e.clientX < mid;
+      if (insertBefore) {
+        if (card.previousElementSibling !== dragPlaceholder) {
+          card.parentNode.insertBefore(dragPlaceholder, card);
+        }
+      } else {
+        if (card.nextElementSibling !== dragPlaceholder) {
+          card.parentNode.insertBefore(dragPlaceholder, card.nextSibling);
+        }
+      }
+    });
     card.addEventListener('drop', e => {
       e.preventDefault();
-      const dragged = e.dataTransfer.getData('text/plain');
-      if (dragged !== f.path) reorderCards(scene, dragged, f.path);
+      card.classList.remove('drag-over');
+      if (!dragPlaceholder) return;
+      const draggedPath = e.dataTransfer.getData('text/plain');
+      if (draggedPath === f.path) return;
+      const grid = card.closest('.cues-grid');
+      const allChildren = Array.from(grid.children);
+      const placeholderIndex = allChildren.indexOf(dragPlaceholder);
+      const scene = card.closest('.scene-panel').id.replace('panel-', '').replace('-', ' ');
+      const newOrder = [];
+      allChildren.forEach(child => {
+        if (child === dragPlaceholder) {
+          newOrder.push(draggedPath);
+        } else if (child.classList.contains('cue-card') && !child.classList.contains('placeholder')) {
+          const path = child.dataset.path;
+          if (path && path !== draggedPath) newOrder.push(path);
+        }
+      });
+      sceneOrders[scene] = newOrder;
+      localStorage.setItem('sceneOrders', JSON.stringify(sceneOrders));
+      loadFiles();
     });
 
     card.onclick = (e) => {
@@ -334,16 +387,7 @@ function renderGrid(scene, files) {
     grid.appendChild(card);
   });
 }
-function reorderCards(scene, draggedPath, targetPath) {
-  const order = sceneOrders[scene];
-  const fromIndex = order.indexOf(draggedPath);
-  const toIndex = order.indexOf(targetPath);
-  if (fromIndex === -1 || toIndex === -1) return;
 
-  order.splice(fromIndex, 1);
-  order.splice(toIndex, 0, draggedPath);
-  loadFiles();
-}
 
 function startRenameFromButton(path) {
   const el = document.querySelector(`.cue-name[data-path="${CSS.escape(path)}"]`);
@@ -384,7 +428,17 @@ async function renameFile(oldPath, oldDisplay, newDisplay) {
   
   const { error } = await sb.storage.from(BUCKET).move(oldPath, newPath);
   if (error) showToast("Rename failed");
-  else { showToast("Renamed successfully"); await loadFiles(); }
+  else { 
+    showToast("Renamed successfully"); 
+    // Update sceneOrders
+    const scene = sceneMatch[1];
+    if (sceneOrders[scene]) {
+      const idx = sceneOrders[scene].indexOf(oldPath);
+      if (idx !== -1) sceneOrders[scene][idx] = newPath;
+      localStorage.setItem('sceneOrders', JSON.stringify(sceneOrders));
+    }
+    await loadFiles(); 
+  }
 }
 
 window.prepareDelete = (path, name) => {
@@ -399,6 +453,15 @@ window.confirmDelete = async () => {
   if (error) showToast("Delete failed");
   else {
     showToast("Deleted successfully");
+    // Remove from sceneOrders
+    const sceneMatch = fileToDelete.match(/^(Scene \d)___/);
+    if (sceneMatch) {
+      const scene = sceneMatch[1];
+      if (sceneOrders[scene]) {
+        sceneOrders[scene] = sceneOrders[scene].filter(p => p !== fileToDelete);
+        localStorage.setItem('sceneOrders', JSON.stringify(sceneOrders));
+      }
+    }
     await loadFiles();
     if (currentPath === fileToDelete) stopAll();
   }
@@ -488,7 +551,17 @@ window.renameFile = async (path, oldName) => {
   
   const { error } = await sb.storage.from(BUCKET).move(path, newPath);
   if (error) showToast("Rename failed");
-  else { showToast("Renamed"); await loadFiles(); }
+  else { 
+    showToast("Renamed"); 
+    // Update sceneOrders
+    const scene = sceneMatch[1];
+    if (sceneOrders[scene]) {
+      const idx = sceneOrders[scene].indexOf(path);
+      if (idx !== -1) sceneOrders[scene][idx] = newPath;
+      localStorage.setItem('sceneOrders', JSON.stringify(sceneOrders));
+    }
+    await loadFiles(); 
+  }
 };
 
 window.deleteFile = async (path, name) => {
@@ -520,17 +593,37 @@ function renderStaging() {
   
   stagedFiles.forEach((item, i) => {
     const r = document.createElement('tr');
-    r.innerHTML = `
-      <td><input type="text" value="${item.displayName}" oninput="stagedFiles[${i}].displayName=this.value"></td>
-      <td><select onchange="stagedFiles[${i}].scene=this.value">${SCENES.map(s=>`<option ${s===item.scene?'selected':''}>${s}</option>`).join('')}</select></td>
-      <td>
-        <button class="remove-staged" title="Remove" onclick="removeStaged(${i})">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </td>`;
+    
+    const td1 = document.createElement('td');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = item.displayName;
+    input.oninput = () => { stagedFiles[i].displayName = input.value; };
+    td1.appendChild(input);
+    r.appendChild(td1);
+    
+    const td2 = document.createElement('td');
+    const select = document.createElement('select');
+    SCENES.forEach(s => {
+      const option = document.createElement('option');
+      option.value = s;
+      option.textContent = s;
+      if (s === item.scene) option.selected = true;
+      select.appendChild(option);
+    });
+    select.onchange = () => { stagedFiles[i].scene = select.value; };
+    td2.appendChild(select);
+    r.appendChild(td2);
+    
+    const td3 = document.createElement('td');
+    const button = document.createElement('button');
+    button.className = 'remove-staged';
+    button.title = 'Remove';
+    button.onclick = () => removeStaged(i);
+    button.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    td3.appendChild(button);
+    r.appendChild(td3);
+    
     b.appendChild(r);
   });
 
@@ -578,6 +671,11 @@ function showToast(msg) {
 }
 
 document.addEventListener('keydown', (e) => {
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable)) {
+    return;
+  }
+
   if (e.code === 'Space') {
     e.preventDefault();
     toggleGlobalPlayback();
